@@ -27,6 +27,35 @@ type ttsPayload struct {
 	Voice string `json:"voice"`
 }
 
+var s3Session *session.Session
+
+func main() {
+
+	KeyID := os.Getenv("AWS_S3_KEY")
+	SecretKey := os.Getenv("AWS_S3_SECRET")
+	Region := "us-east-1"
+	// Parse command-line flags
+
+	// Create an AWS session
+	var err error
+	s3Session, err = session.NewSession(&aws.Config{
+		Region:      aws.String(Region),
+		Credentials: credentials.NewStaticCredentials(KeyID, SecretKey, ""),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// data := ttsPayload{
+	// 	// fill struct
+	// 	Model: "tts-1",
+	// 	Input: "this is a text",
+	// 	Voice: "alloy",
+	// }
+
+	lambda.Start(handleRequest)
+}
+
 func md5sum(str string) string {
 	hash := md5.Sum([]byte(str))
 	hashString := hex.EncodeToString(hash[:])
@@ -78,9 +107,9 @@ func openAItts(payload ttsPayload) []byte {
 	return respBody
 }
 
-func uploadFileToS3(sess *session.Session, bucketName string, fileName string, audioContent []byte) error {
+func uploadFileToS3(bucketName string, fileName string, audioContent []byte) error {
 
-	svc := s3.New(sess)
+	svc := s3.New(s3Session)
 	suffix := ".mp3"
 
 	input := &s3.PutObjectInput{
@@ -108,7 +137,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (
 	if err != nil {
 		return events.APIGatewayProxyResponse{
 			StatusCode: http.StatusBadRequest,
-			Body:       "Invalid request body",
+			Body:       "Invalid request body" + err.Error(),
 		}, nil
 	}
 
@@ -148,39 +177,11 @@ func processRequest(request ttsPayload) bool {
 	fileName := md5sum(data.Input)
 	audioContent := openAItts(data)
 	// // Upload file to S3 bucket
-	err := uploadFileToS3(sess, "chat-openai-tts", fileName, audioContent)
+	err := uploadFileToS3("chat-openai-tts", fileName, audioContent)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// For demonstration purposes, assume the request is successful
 	return true
-}
-
-var sess *session.Session
-
-func main() {
-
-	KeyID := os.Getenv("AWS_S3_KEY")
-	SecretKey := os.Getenv("AWS_S3_SECRET")
-	Region := "us-east-1"
-	// Parse command-line flags
-
-	// Create an AWS session
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(Region),
-		Credentials: credentials.NewStaticCredentials(KeyID, SecretKey, ""),
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// data := ttsPayload{
-	// 	// fill struct
-	// 	Model: "tts-1",
-	// 	Input: "this is a text",
-	// 	Voice: "alloy",
-	// }
-
-	lambda.Start(handleRequest)
 }
