@@ -4,3 +4,4 @@ fileUploader
 audio.html
 bootstrap
 tts_lambda.zip
+tts_s3_lambda
