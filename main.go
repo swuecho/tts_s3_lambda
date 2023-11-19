@@ -122,11 +122,12 @@ func openAItts(payload ttsPayload) []byte {
 func uploadFileToS3(sess *session.Session, bucketName string, fileName string, audioContent []byte) error {
 
 	svc := s3.New(sess)
+	suffix:= ".mp3"
 
 	input := &s3.PutObjectInput{
 		Body:   bytes.NewReader(audioContent),
 		Bucket: aws.String(bucketName),
-		Key:    aws.String(fileName),
+		Key:    aws.String(fileName + suffix),
 	}
 
 	// Upload the file to S3
