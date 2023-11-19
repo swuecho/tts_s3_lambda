@@ -1,16 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"os"
-	"io/ioutil"
-	"bytes"
-	"crypto/md5"
-	"encoding/json"
-	"encoding/hex"
 	"net/http"
+	"os"
+
+	"io"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -24,7 +25,7 @@ func main() {
 	Region := "us-east-1"
 	// Parse command-line flags
 	s3Bucket := flag.String("bucket", "", "S3 bucket name")
-	textInput:= flag.String("text", "", "text")
+	textInput := flag.String("text", "", "text")
 	flag.Parse()
 
 	// Validate arguments
@@ -42,10 +43,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fileName :=  md5sum(*textInput)
+	fileName := md5sum(*textInput)
 	audioContent := openAItts(*textInput)
 	// // Upload file to S3 bucket
-	err = uploadFileToS3(sess,  *s3Bucket, fileName, audioContent)
+	err = uploadFileToS3(sess, *s3Bucket, fileName, audioContent)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,12 +82,13 @@ func openAItts(textInput string) []byte {
 	data := ttsPayload{
 		// fill struct
 		Model: "tts-1",
-		Input: textInput, 
+		Input: textInput,
 		Voice: "alloy",
 	}
 	payloadBytes, err := json.Marshal(data)
 	if err != nil {
 		// handle err
+		log.Fatal("marshall data err")
 	}
 	body := bytes.NewReader(payloadBytes)
 
@@ -104,12 +106,11 @@ func openAItts(textInput string) []byte {
 		fmt.Println("request err")
 	}
 
-	
 	defer resp.Body.Close()
 	// Create file
 
 	// Read the API response
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.Reader(resp.Body))
 	if err != nil {
 		log.Fatal("Error reading response: ", err)
 	}
@@ -117,7 +118,7 @@ func openAItts(textInput string) []byte {
 }
 
 func uploadFileToS3(sess *session.Session, bucketName string, fileName string, audioContent []byte) error {
-	
+
 	svc := s3.New(sess)
 
 	input := &s3.PutObjectInput{
